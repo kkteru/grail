@@ -1,10 +1,10 @@
 # GraIL - Graph Inductive Learning
 
-This is the code necessary to run experiments on GraIL algorithm described in [this](https://arxiv.org/abs/1911.06962) paper.
+This is the code necessary to run experiments on GraIL algorithm described in the ICML'20 paper [Inductive relation prediction by subgraph reasoning](https://arxiv.org/abs/1911.06962).
 
 ## Requiremetns
 
-The code was developed in Python 3. All the required packages can be installed by running `pip install -r requirements.txt`.
+All the required packages can be installed by running `pip install -r requirements.txt`.
 
 ## Inductive relation prediction experiments
 
@@ -50,3 +50,14 @@ Once the KGE models are trained, to get ensembling results with GraIL, navigate 
 
 To get ensenbling among different KGE models, from the `ensembling` folder run the following command.
 `source get_kge_predictions.sh WN18RR TransE ComplEx`
+
+
+
+If you make use of this code or the GraIL algorithm in your work, please cite the following paper:
+
+	@article{Teru2020InductiveRP,
+	  title={Inductive Relation Prediction by Subgraph Reasoning.},
+	  author={Komal K. Teru and Etienne Denis and William L. Hamilton},
+	  journal={arXiv: Learning},
+	  year={2020}
+	}
