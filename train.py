@@ -22,7 +22,9 @@ def main(params):
 
     params.db_path = os.path.join(params.main_dir, f'data/{params.dataset}/subgraphs_en_{params.enclosing_sub_graph}_neg_{params.num_neg_samples_per_link}_hop_{params.hop}')
 
+    logging.info("omg here we go??")
     if not os.path.isdir(params.db_path):
+        logging.info("omg here we go")
         generate_subgraph_datasets(params)
 
     train = SubgraphDataset(params.db_path, 'train_pos', 'train_neg', params.file_paths,
@@ -126,6 +128,10 @@ if __name__ == '__main__':
                         help='whether to append adj matrix list with symmetric relations')
     parser.add_argument('--enclosing_sub_graph', '-en', type=bool, default=True,
                         help='whether to only consider enclosing subgraph')
+    parser.add_argument('--placn_subgraphs', '-ps', type=bool, default=False,
+                        help='whether to use constant size subgraphs from Placn method')
+    parser.add_argument('--placn_subgraph_size', '-psz', type=int, default=30,
+                        help='The constant size of subgraphs from Placn method')
 
     # Model params
     parser.add_argument("--rel_emb_dim", "-r_dim", type=int, default=32,

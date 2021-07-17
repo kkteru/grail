@@ -1,0 +1,1 @@
+MATCH p=(s)-[r]->(o) WHERE not s:Paragraph and not s:Verse and not o:Paragraph and not o:Verse and not (s)-[r:FOLLOWS]->(o) RETURN ID(s), TYPE(r), ID(o)  LIMIT 1000000
