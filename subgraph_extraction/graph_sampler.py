@@ -151,10 +151,6 @@ def extract_save_subgraph(args_):
     idx, (n1, n2, r_label), g_label = args_
     nodes, n_labels, subgraph_size, enc_ratio, num_pruned_nodes = subgraph_extraction_labeling((n1, n2), r_label, A_, params_.hop, params_.enclosing_sub_graph, params_.max_nodes_per_hop, None, params_)
 
-    # max_label_value_ is to set the maximum possible value of node label while doing double-radius labelling.
-    if max_label_value_ is not None and not params_.placn_subgraph_size:
-        n_labels = np.array([np.minimum(label, max_label_value_).tolist() for label in n_labels])
-
     datum = {'nodes': nodes, 'r_label': r_label, 'g_label': g_label, 'n_labels': n_labels, 'subgraph_size': subgraph_size, 'enc_ratio': enc_ratio, 'num_pruned_nodes': num_pruned_nodes}
     str_id = '{:08}'.format(idx).encode('ascii')
 
@@ -206,18 +202,22 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
         else:
             subgraph_nodes = list(ind) + list(subgraph_nei_nodes_un)
         hop = hop + 1
-
+    subgraph_nodes = subgraph_nodes[:params.placn_subgraph_size]
     subgraph = [adj[subgraph_nodes, :][:, subgraph_nodes] for adj in A_list]
 
     labels, enclosing_subgraph_nodes = placn_node_label(incidence_matrix(subgraph), max_distance=hop)
 
-    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes][:params.placn_subgraph_size].tolist() #guarantee K size (placn)
-    pruned_labels = labels[:params.placn_subgraph_size]
+    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist() #guarantee K size (placn)
+    pruned_labels = labels
 
     subgraph_size = len(pruned_subgraph_nodes)
     enc_ratio = len(subgraph_nei_nodes_int) / (len(subgraph_nei_nodes_un) + 1e-3)
     num_pruned_nodes = len(subgraph_nodes) - len(pruned_subgraph_nodes)
 
+    if len(pruned_labels) != len(pruned_subgraph_nodes):
+        print(len(pruned_labels))
+        print(len(pruned_subgraph_nodes))
+        quit()
     return pruned_subgraph_nodes, pruned_labels, subgraph_size, enc_ratio, num_pruned_nodes
     
 
@@ -235,6 +235,5 @@ def placn_node_label(subgraph, max_distance=1, k=6):
         #weights not available, just use distance
         d = (h_i+h_j)/2
         node_map += [d]
-
-    enclosing_subgraph_nodes = np.where(np.array(node_map) <= 90000)[0]
+    enclosing_subgraph_nodes = np.where(np.array(node_map) <= 90000000)[0]
     return np.argsort(np.argsort(node_map)), enclosing_subgraph_nodes
