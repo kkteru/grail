@@ -80,10 +80,9 @@ class SubgraphDataset(Dataset):
         self.id2entity = id2entity
         self.id2relation = id2relation
 
-        self.max_n_label = np.array([0, 0])
+        self.max_n_label = 0
         with self.main_env.begin() as txn:
-            self.max_n_label[0] = int.from_bytes(txn.get('max_n_label_sub'.encode()), byteorder='little')
-            self.max_n_label[1] = int.from_bytes(txn.get('max_n_label_obj'.encode()), byteorder='little')
+            self.max_n_label = int.from_bytes(txn.get('max_n_label'.encode()), byteorder='little')
 
             self.avg_subgraph_size = struct.unpack('f', txn.get('avg_subgraph_size'.encode()))
             self.min_subgraph_size = struct.unpack('f', txn.get('min_subgraph_size'.encode()))
@@ -100,7 +99,7 @@ class SubgraphDataset(Dataset):
             self.max_num_pruned_nodes = struct.unpack('f', txn.get('max_num_pruned_nodes'.encode()))
             self.std_num_pruned_nodes = struct.unpack('f', txn.get('std_num_pruned_nodes'.encode()))
 
-        logging.info(f"Max distance from sub : {self.max_n_label[0]}, Max distance from obj : {self.max_n_label[1]}")
+        logging.info(f"Max distance node label: {self.max_n_label}")
 
         # logging.info('=====================')
         # logging.info(f"Subgraph size stats: \n Avg size {self.avg_subgraph_size}, \n Min size {self.min_subgraph_size}, \n Max size {self.max_subgraph_size}, \n Std {self.std_subgraph_size}")
@@ -158,31 +157,17 @@ class SubgraphDataset(Dataset):
 
         return subgraph
 
-    def _prepare_features(self, subgraph, n_labels, n_feats=None):
+    def _prepare_features_placn(self, subgraph, n_labels, n_feats=None):
         # One hot encode the node label feature and concat to n_featsure
         n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, self.max_n_label[0] + 1))
-        label_feats[np.arange(n_nodes), n_labels] = 1
-        label_feats[np.arange(n_nodes), self.max_n_label[0] + 1 + n_labels[:, 1]] = 1
-        n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats else label_feats
-        subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
-        self.n_feat_dim = n_feats.shape[1]  # Find cleaner way to do this -- i.e. set the n_feat_dim
-        return subgraph
-
-    def _prepare_features_new(self, subgraph, n_labels, n_feats=None):
-        # One hot encode the node label feature and concat to n_featsure
-        n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, self.max_n_label[0] + 1 + self.max_n_label[1] + 1))
-        label_feats[np.arange(n_nodes), n_labels[:, 0]] = 1
-        label_feats[np.arange(n_nodes), self.max_n_label[0] + 1 + n_labels[:, 1]] = 1
-        # label_feats = np.zeros((n_nodes, self.max_n_label[0] + 1 + self.max_n_label[1] + 1))
-        # label_feats[np.arange(n_nodes), 0] = 1
-        # label_feats[np.arange(n_nodes), self.max_n_label[0] + 1] = 1
+        label_feats = np.zeros((n_nodes, self.max_n_label + 1))
+        label_feats[np.arange(n_nodes), n_labels[:]] = 1
+        label_feats[np.arange(n_nodes), self.max_n_label + 1 + n_labels[:]] = 1
         n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats is not None else label_feats
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
 
-        head_id = np.argwhere([label[0] == 0 and label[1] == 1 for label in n_labels])
-        tail_id = np.argwhere([label[0] == 1 and label[1] == 0 for label in n_labels])
+        head_id = 0
+        tail_id = 1
         n_ids = np.zeros(n_nodes)
         n_ids[head_id] = 1  # head
         n_ids[tail_id] = 2  # tail
