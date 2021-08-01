@@ -212,7 +212,7 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
     labels, enclosing_subgraph_nodes = placn_node_label(incidence_matrix(subgraph), max_distance=hop)
 
     pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes][:params.placn_subgraph_size].tolist() #guarantee K size (placn)
-    pruned_labels = labels
+    pruned_labels = labels[:params.placn_subgraph_size]
 
     subgraph_size = len(pruned_subgraph_nodes)
     enc_ratio = len(subgraph_nei_nodes_int) / (len(subgraph_nei_nodes_un) + 1e-3)
@@ -237,4 +237,4 @@ def placn_node_label(subgraph, max_distance=1, k=6):
         node_map += [d]
 
     enclosing_subgraph_nodes = np.where(np.array(node_map) <= 90000)[0]
-    return node_map, enclosing_subgraph_nodes
+    return np.argsort(np.argsort(node_map)), enclosing_subgraph_nodes

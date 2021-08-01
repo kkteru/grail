@@ -81,7 +81,7 @@ class SubgraphDataset(Dataset):
         self.id2relation = id2relation
 
         with self.main_env.begin() as txn:
-            self.max_n_label = struct.unpack('i', txn.get('max_n_label'.encode()))
+            self.max_n_label = struct.unpack('i', txn.get('max_n_label'.encode()))[0]
             self.avg_subgraph_size = struct.unpack('f', txn.get('avg_subgraph_size'.encode()))
             self.min_subgraph_size = struct.unpack('f', txn.get('min_subgraph_size'.encode()))
             self.max_subgraph_size = struct.unpack('f', txn.get('max_subgraph_size'.encode()))
@@ -151,16 +151,15 @@ class SubgraphDataset(Dataset):
         # map the id read by GraIL to the entity IDs as registered by the KGE embeddings
         kge_nodes = [self.kge_entity2id[self.id2entity[n]] for n in nodes] if self.kge_entity2id else None
         n_feats = self.node_features[kge_nodes] if self.node_features is not None else None
-        subgraph = self._prepare_features_new(subgraph, n_labels, n_feats)
+        subgraph = self._prepare_features_placn(subgraph, n_labels, n_feats)
 
         return subgraph
 
     def _prepare_features_placn(self, subgraph, n_labels, n_feats=None):
         # One hot encode the node label feature and concat to n_featsure
         n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, self.max_n_label + 1))
-        label_feats[np.arange(n_nodes), n_labels[:]] = 1
-        label_feats[np.arange(n_nodes), self.max_n_label + 1 + n_labels[:]] = 1
+        label_feats = np.zeros((n_nodes, n_nodes))
+        label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
         n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats is not None else label_feats
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
 
