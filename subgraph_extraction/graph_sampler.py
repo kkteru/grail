@@ -115,9 +115,8 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
     max_n_label['value'] = max_label_value if max_label_value is not None else max_n_label['value']
 
     with env.begin(write=True) as txn:
-        bit_len_label_sub = int.bit_length(int(max_n_label['value']))
-        txn.put('max_n_label'.encode(), (int(max_n_label['value'])).to_bytes(bit_len_label_sub, byteorder='little'))
 
+        txn.put('max_n_label'.encode(), struct.pack('i', int(max_n_label['value'])))
         txn.put('avg_subgraph_size'.encode(), struct.pack('f', float(np.mean(subgraph_sizes))))
         txn.put('min_subgraph_size'.encode(), struct.pack('f', float(np.min(subgraph_sizes))))
         txn.put('max_subgraph_size'.encode(), struct.pack('f', float(np.max(subgraph_sizes))))
@@ -212,10 +211,8 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
 
     labels, enclosing_subgraph_nodes = placn_node_label(incidence_matrix(subgraph), max_distance=hop)
 
-    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist()[:params.placn_subgraph_size] #guarantee K size (placn)
-    pruned_labels = labels[enclosing_subgraph_nodes]
-    # pruned_subgraph_nodes = subgraph_nodes
-    # pruned_labels = labels
+    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes][:params.placn_subgraph_size].tolist() #guarantee K size (placn)
+    pruned_labels = labels
 
     subgraph_size = len(pruned_subgraph_nodes)
     enc_ratio = len(subgraph_nei_nodes_int) / (len(subgraph_nei_nodes_un) + 1e-3)
@@ -229,19 +226,15 @@ def placn_node_label(subgraph, max_distance=1, k=6):
     # implementation of the node labeling scheme described in PLACN
     
     roots = [0, 1]
-    rk = remove_nodes(subgraph, roots)
-    ordered_nodes = [root for root in roots]
-    node_map = []
-    dist_to_roots = np.clip(ssp.csgraph.dijkstra(subgraph, indices=[0, 1], directed=False, unweighted=True, min_only=false, limit=1e6)[:, 1:], 0, 1e7)
+    node_map = [.5, .5]
+    dist_to_roots = np.clip(ssp.csgraph.dijkstra(subgraph, indices=[0, 1], directed=False, unweighted=True, min_only=False, limit=1e6), 0, 1e7)
         
-    for r in (range(subgraph.shape[0]) - [0,1])
-        h_i = dist_to_roots[0][r+2]
-        h_j = dist_to_roots[1][r+2]
+    for r in range(subgraph.shape[0])[2:]:
+        h_i = dist_to_roots[0][r]
+        h_j = dist_to_roots[1][r]
         #weights not available, just use distance
         d = (h_i+h_j)/2
         node_map += [d]
 
-    sorted = np.argsort(node_map)
-    ordered_nodes += sorted;
-    enclosing_subgraph_nodes = np.where(np.max(ordered_nodes, axis=1) <= max_distance)[0]
-    return labels, enclosing_subgraph_nodes
+    enclosing_subgraph_nodes = np.where(np.array(node_map) <= 90000)[0]
+    return node_map, enclosing_subgraph_nodes

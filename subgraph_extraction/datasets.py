@@ -80,10 +80,8 @@ class SubgraphDataset(Dataset):
         self.id2entity = id2entity
         self.id2relation = id2relation
 
-        self.max_n_label = 0
         with self.main_env.begin() as txn:
-            self.max_n_label = int.from_bytes(txn.get('max_n_label'.encode()), byteorder='little')
-
+            self.max_n_label = struct.unpack('i', txn.get('max_n_label'.encode()))
             self.avg_subgraph_size = struct.unpack('f', txn.get('avg_subgraph_size'.encode()))
             self.min_subgraph_size = struct.unpack('f', txn.get('min_subgraph_size'.encode()))
             self.max_subgraph_size = struct.unpack('f', txn.get('max_subgraph_size'.encode()))
