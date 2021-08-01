@@ -247,7 +247,7 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
 
         subgraph = [adj[subgraph_nodes, :][:, subgraph_nodes] for adj in A_list]
 
-        labels, enclosing_subgraph_nodes = node_label(incidence_matrix(subgraph), max_distance=h)
+        labels, enclosing_subgraph_nodes = node_label(incidence_matrix(subgraph), max_distance=hop)
 
         pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist()
         pruned_labels = labels[enclosing_subgraph_nodes]
