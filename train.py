@@ -31,7 +31,7 @@ def main(params):
                             add_traspose_rels=params.add_traspose_rels,
                             num_neg_samples_per_link=params.num_neg_samples_per_link,
                             use_kge_embeddings=params.use_kge_embeddings, dataset=params.dataset,
-                            kge_model=params.kge_model, file_name=params.train_file)
+                            kge_model=params.kge_model, file_name=params.train_file, placn_size=params.placn_subgraph_size)
     valid = SubgraphDataset(params.db_path, 'valid_pos', 'valid_neg', params.file_paths,
                             add_traspose_rels=params.add_traspose_rels,
                             num_neg_samples_per_link=params.num_neg_samples_per_link,

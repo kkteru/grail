@@ -56,7 +56,7 @@ def get_kge_embeddings(dataset, kge_model):
 class SubgraphDataset(Dataset):
     """Extracted, labeled, subgraph dataset -- DGL Only"""
 
-    def __init__(self, db_path, db_name_pos, db_name_neg, raw_data_paths, included_relations=None, add_traspose_rels=False, num_neg_samples_per_link=1, use_kge_embeddings=False, dataset='', kge_model='', file_name=''):
+    def __init__(self, db_path, db_name_pos, db_name_neg, raw_data_paths, included_relations=None, add_traspose_rels=False, num_neg_samples_per_link=1, use_kge_embeddings=False, dataset='', kge_model='', file_name='', placn_size=20):
 
         self.main_env = lmdb.open(db_path, readonly=True, max_dbs=3, lock=False)
         self.db_pos = self.main_env.open_db(db_name_pos.encode())
@@ -64,7 +64,7 @@ class SubgraphDataset(Dataset):
         self.node_features, self.kge_entity2id = get_kge_embeddings(dataset, kge_model) if use_kge_embeddings else (None, None)
         self.num_neg_samples_per_link = num_neg_samples_per_link
         self.file_name = file_name
-
+        self.placn_size=placn_size
         ssp_graph, __, __, __, id2entity, id2relation = process_files(raw_data_paths, included_relations)
         self.num_rels = len(ssp_graph)
 
@@ -158,7 +158,7 @@ class SubgraphDataset(Dataset):
     def _prepare_features_placn(self, subgraph, n_labels, n_feats=None):
         # One hot encode the node label feature and concat to n_featsure
         n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, n_nodes))
+        label_feats = np.zeros((n_nodes, self.placn_size))
         label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
         n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats is not None else label_feats
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
