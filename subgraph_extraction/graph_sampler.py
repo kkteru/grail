@@ -184,12 +184,12 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
     # x belong to Lh+1(i) and x belong to Lh+1(j)
     # x belong to Lh+1(i) intersect Lh+1(j)
 
+                
     hop = 1
     subgraph_nodes = []
+    A_incidence = incidence_matrix(A_list)
+    A_incidence += A_incidence.T
     while len(subgraph_nodes) < params.placn_subgraph_size and hop < 10:
-        A_incidence = incidence_matrix(A_list)
-        A_incidence += A_incidence.T
-
         root1_nei = get_neighbor_nodes(set([ind[0]]), A_incidence, hop, None)
         root2_nei = get_neighbor_nodes(set([ind[1]]), A_incidence, hop, None)
 
@@ -202,12 +202,12 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
         else:
             subgraph_nodes = list(ind) + list(subgraph_nei_nodes_un)
         hop = hop + 1
-    subgraph_nodes = subgraph_nodes[:params.placn_subgraph_size]
+    subgraph_nodes = subgraph_nodes[:params.placn_subgraph_size] #force to PLACN K size
     subgraph = [adj[subgraph_nodes, :][:, subgraph_nodes] for adj in A_list]
 
-    labels, enclosing_subgraph_nodes = placn_node_label(incidence_matrix(subgraph), max_distance=hop)
+    labels, enclosing_subgraph_nodes = placn_node_label(incidence_matrix(subgraph), params.placn_subgraph_size)
 
-    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist() #guarantee K size (placn)
+    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist() 
     pruned_labels = labels
 
     subgraph_size = len(pruned_subgraph_nodes)
@@ -222,18 +222,21 @@ def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=Fals
     
 
 
-def placn_node_label(subgraph, max_distance=1, k=6):
+def placn_node_label(subgraph,  k):
     # implementation of the node labeling scheme described in PLACN
     
     roots = [0, 1]
     node_map = [.5, .5]
     dist_to_roots = np.clip(ssp.csgraph.dijkstra(subgraph, indices=[0, 1], directed=False, unweighted=True, min_only=False, limit=1e6), 0, 1e7)
-        
+    enclosing_subgraph_nodes = []
     for r in range(subgraph.shape[0])[2:]:
+        nextIndex = len(enclosing_subgraph_nodes)
         h_i = dist_to_roots[0][r]
         h_j = dist_to_roots[1][r]
         #weights not available, just use distance
         d = (h_i+h_j)/2
-        node_map += [d]
-    enclosing_subgraph_nodes = np.where(np.array(node_map) <= 90000000)[0]
-    return np.argsort(np.argsort(node_map)), enclosing_subgraph_nodes
+        if(d > .5 && d <= k) #worse case is K hops if graph is a straight line of nodes
+            node_map += [d]
+        else
+            node_map += [k]
+    return np.argsort(np.argsort(node_map)), range(subgraph.shape[0])

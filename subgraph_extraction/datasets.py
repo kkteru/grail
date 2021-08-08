@@ -56,6 +56,7 @@ def get_kge_embeddings(dataset, kge_model):
 class SubgraphDataset(Dataset):
     """Extracted, labeled, subgraph dataset -- DGL Only"""
 
+               
     def __init__(self, db_path, db_name_pos, db_name_neg, raw_data_paths, included_relations=None, add_traspose_rels=False, num_neg_samples_per_link=1, use_kge_embeddings=False, dataset='', kge_model='', file_name='', placn_size=20):
 
         self.main_env = lmdb.open(db_path, readonly=True, max_dbs=3, lock=False)
@@ -76,6 +77,32 @@ class SubgraphDataset(Dataset):
         # the effective number of relations after adding symmetric adjacency matrices and/or self connections
         self.aug_num_rels = len(ssp_graph)
         self.graph = ssp_multigraph_to_dgl(ssp_graph)
+        # compile node features as a 6 dimensional vector
+        # [other node][CN][JC][AA][PA][RA]
+
+        n_nodes = self.graph.number_of_nodes();
+        #tensor of features to use to look up features by nodes (i, j)
+        self.placn_features = np.zeros((n_nodes, n_nodes, 5))
+        for i in range(0,n_nodes):
+            i_nei = dgl.sampling.sample_neighbors(self.graph, np.array([i]), -1).nodes()
+            for j in range(0,n_nodes):
+                if i==j: continue
+                j_nei = dgl.sampling.sample_neighbors(self.graph, np.array([j]), -1).nodes()
+
+                cn_set = set(i_nei)
+                cn_set.intersection_update(set(j_nei))
+                placn_features[i][j][0] = len(cn_set)#Common neighboiurs
+
+                all_nei = set(i_nei)
+                all_nei.union(set(j_nei))
+                placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
+
+                aa_sum = 0;#adamic-adair
+                for k in all_nei:
+                    aa_sum = aa_sum + len(dgl.sampling.sample_neighbors(self.graph, np.array([k]), -1).nodes())
+                placn_features[i][j][2] = aa_sum #adamic-adair
+
+
         self.ssp_graph = ssp_graph
         self.id2entity = id2entity
         self.id2relation = id2relation
@@ -118,7 +145,7 @@ class SubgraphDataset(Dataset):
     def __getitem__(self, index):
         with self.main_env.begin(db=self.db_pos) as txn:
             str_id = '{:08}'.format(index).encode('ascii')
-            nodes_pos, r_label_pos, g_label_pos, n_labels_pos = deserialize(txn.get(str_id)).values()
+            nodes_pos, r_label_pos, g_label_pos, n_labels_pos, placn_features = deserialize(txn.get(str_id)).values()
             subgraph_pos = self._prepare_subgraphs(nodes_pos, r_label_pos, n_labels_pos)
         subgraphs_neg = []
         r_labels_neg = []
@@ -131,12 +158,13 @@ class SubgraphDataset(Dataset):
                 r_labels_neg.append(r_label_neg)
                 g_labels_neg.append(g_label_neg)
 
-        return subgraph_pos, g_label_pos, r_label_pos, subgraphs_neg, g_labels_neg, r_labels_neg
+        return subgraph_pos, g_label_pos, r_label_pos, subgraphs_neg, g_labels_neg, r_labels_neg, placn_features
 
     def __len__(self):
         return self.num_graphs_pos
 
     def _prepare_subgraphs(self, nodes, r_label, n_labels):
+        
         subgraph = dgl.DGLGraph(self.graph.subgraph(nodes))
         subgraph.edata['type'] = self.graph.edata['type'][self.graph.subgraph(nodes).parent_eid]
         subgraph.edata['label'] = torch.tensor(r_label * np.ones(subgraph.edata['type'].shape), dtype=torch.long)
@@ -151,20 +179,31 @@ class SubgraphDataset(Dataset):
         # map the id read by GraIL to the entity IDs as registered by the KGE embeddings
         kge_nodes = [self.kge_entity2id[self.id2entity[n]] for n in nodes] if self.kge_entity2id else None
         n_feats = self.node_features[kge_nodes] if self.node_features is not None else None
-        subgraph = self._prepare_features_placn(subgraph, n_labels, n_feats)
+        subgraph = self._prepare_features_placn(nodes, subgraph, n_labels, n_feats)
 
         return subgraph
 
-    def _prepare_features_placn(self, subgraph, n_labels, n_feats=None):
+    def _prepare_features_placn(self, nodes, subgraph, n_labels, n_feats=None):
         # One hot encode the node label feature and concat to n_featsure
         n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, self.placn_size))
+        label_feats = np.zeros((n_nodes,len(n_labels)))
         label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
+        placn_subfeats=[]
+        for i in range(0, n_nodes):
+            ith=np.zeros((n_nodes * 3))
+            for j in range(0, n_nodes):
+                # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
+                # model, positive links should not contain any information of the link’s
+                # existence.
+                for f in range(0, 3):
+                    ith[3*j + f] = placn_features[i][j][f] if i!=j else 0
+            placn_subfeats[] = ith
         n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats is not None else label_feats
+        n_feats = np.concatenate((n_feats, placn_subfeats), axis=1)
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
 
-        head_id = 0
-        tail_id = 1
+        head_id = np.argwhere([label == 0 for label in n_labels])
+        tail_id = np.argwhere([label == 1 for label in n_labels])
         n_ids = np.zeros(n_nodes)
         n_ids[head_id] = 1  # head
         n_ids[tail_id] = 2  # tail
