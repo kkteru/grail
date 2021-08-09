@@ -209,7 +209,7 @@ class SubgraphDataset(Dataset):
         label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
         placn_subfeats=np.zeros((n_nodes, self.placn_size))
         for i in range(0, n_nodes):
-            ith=np.zeros((n_nodes * 3))
+            ith=np.zeros((self.placn_size))
             for j in range(0, n_nodes):
                 # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
                 # model, positive links should not contain any information of the link’s
