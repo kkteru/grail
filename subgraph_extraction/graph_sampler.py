@@ -235,8 +235,11 @@ def placn_node_label(subgraph,  k):
         h_j = dist_to_roots[1][r]
         #weights not available, just use distance
         d = (h_i+h_j)/2
-        if(d > .5 && d <= k) #worse case is K hops if graph is a straight line of nodes
+        if d > .5 and d <= k: #worse case is K hops if graph is a straight line of nodes
             node_map += [d]
-        else
+        else:
             node_map += [k]
-    return np.argsort(np.argsort(node_map)), range(subgraph.shape[0])
+    r = np.argsort(np.argsort(node_map))
+    print(r)
+    
+    return r, range(subgraph.shape[0])
