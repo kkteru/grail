@@ -198,27 +198,24 @@ class SubgraphDataset(Dataset):
         # map the id read by GraIL to the entity IDs as registered by the KGE embeddings
         kge_nodes = [self.kge_entity2id[self.id2entity[n]] for n in nodes] if self.kge_entity2id else None
         n_feats = self.node_features[kge_nodes] if self.node_features is not None else None
-        subgraph = self._prepare_features_placn(nodes, subgraph, n_labels, n_feats)
+        subgraph = self._prepare_features_placn(nodes, subgraph, n_labels)
 
         return subgraph
 
-    def _prepare_features_placn(self, nodes, subgraph, n_labels, n_feats=None):
+    def _prepare_features_placn(self, nodes, subgraph, n_labels):
         # One hot encode the node label feature and concat to n_featsure
         n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes,len(n_labels)))
+        label_feats = np.zeros((n_nodes,self.placn_size))
         label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
-        placn_subfeats=np.zeros((n_nodes, self.placn_size))
+        placn_subfeats=np.zeros((n_nodes, self.placn_size * 3))
         for i in range(0, n_nodes):
-            ith=np.zeros((self.placn_size))
             for j in range(0, n_nodes):
                 # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
                 # model, positive links should not contain any information of the link’s
                 # existence.
                 for f in range(0, 3):
-                    ith[3*j + f] = self.placn_features[i][j][f] if i!=j else 0
-            np.concatenate((placn_subfeats, ith), axis=0)
-        n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats is not None else label_feats
-        n_feats = np.concatenate((n_feats, [placn_subfeats]), axis=1)
+                    placn_subfeats[i][3*j + f] = self.placn_features[i][j][f]
+        n_feats = np.concatenate((label_feats,placn_subfeats), axis=1) 
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
 
         head_id = np.argwhere([label == 0 for label in n_labels])
