@@ -226,4 +226,8 @@ class SubgraphDataset(Dataset):
         subgraph.ndata['id'] = torch.FloatTensor(n_ids)
 
         self.n_feat_dim = n_feats.shape[1]  # Find cleaner way to do this -- i.e. set the n_feat_dim
+        if self.n_feat_dim > self.placn_size*4:
+            print(nodes)
+            print(self.n_feat_dim)
+            die()
         return subgraph

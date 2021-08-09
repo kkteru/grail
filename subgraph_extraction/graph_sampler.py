@@ -240,6 +240,4 @@ def placn_node_label(subgraph,  k):
         else:
             node_map += [k]
     r = np.argsort(np.argsort(node_map))
-    print(r)
-    
     return r, range(subgraph.shape[0])

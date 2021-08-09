@@ -34,7 +34,7 @@ def main(params):
                             add_traspose_rels=params.add_traspose_rels,
                             num_neg_samples_per_link=params.num_neg_samples_per_link,
                             use_kge_embeddings=params.use_kge_embeddings, dataset=params.dataset,
-                            kge_model=params.kge_model, file_name=params.valid_file)
+                            kge_model=params.kge_model, file_name=params.valid_file, placn_size=params.placn_subgraph_size)
 
     params.num_rels = train.num_rels
     params.aug_num_rels = train.aug_num_rels
