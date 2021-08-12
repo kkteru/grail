@@ -86,7 +86,7 @@ class SubgraphDataset(Dataset):
 
         n_nodes = self.graph.number_of_nodes();
         #tensor of features to use to look up features by nodes (i, j)
-        self.placn_features = np.zeros((n_nodes, n_nodes, 5))
+        self.placn_features = np.zeros((n_nodes, n_nodes, 4))
         neighborCache = {}
         for i in tqdm(range(0,n_nodes)):
             if i in neighborCache:
@@ -95,33 +95,62 @@ class SubgraphDataset(Dataset):
                 i_nei = get_neighbor_nodes(set([i]), A_incidence, 1, None)
                 neighborCache[i] = i_nei
             
-            for j in range(0,n_nodes):
+            for j in range(0,n_nodes):                
+                # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
+                # model, positive links should not contain any information of the link’s
+                # existence.
                 if i==j: continue
+                
                 if j in neighborCache:
                     j_nei = neighborCache[j]
                 else:
                     j_nei = get_neighbor_nodes(set([j]), A_incidence, 1, None)
                     neighborCache[j] = j_nei
 
+                #for the sake of one hot-encoding, the formulas
+                #were commented out and replaced with
+                #a value that ranges from [0 - n_nodes)
+                #seeking to capture the new information in each heuristic
                 cn_set = set(i_nei)
                 cn_set.intersection_update(set(j_nei))
-                self.placn_features[i][j][0] = len(cn_set)#Common neighboiurs
+                self.placn_features[i][j][0] = len(cn_set)#Common neighbours
 
                 all_nei = set(i_nei)
                 all_nei.union(set(j_nei))
-                self.placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
+                #self.placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
+                self.placn_features[i][j][1] = len(all_nei) #For ease of one-hot encoding, just using the union of neighbours as it is the only new information in this formula
 
                 aa_sum = 0;#adamic-adair
+                #replaced with a weighted average of neighbour neighbourhood sizes
                 for k in all_nei:
                     if k in neighborCache != None:
                         k_nei = neighborCache[k]
                     else:
                         k_nei = get_neighbor_nodes(set([k]), A_incidence, 1, None)
                         neighborCache[k] = k_nei
-                    aa_sum = aa_sum + len(k_nei)
-                self.placn_features[i][j][2] = aa_sum #adamic-adair
+                #    aa_sum = aa_sum + 1/math.log(len(k_nei))
+                        aa_sum = aa_sum + len(k_nei)
+                aa_sum = math.round(math.min(aa_sum / (len(all_nei) * (len(n_nodes) - 1)), n_nodes))#divide sum by denominator of weighted average
+                # self.placn_features[i][j][2] = aa_sum #adamic-adair
 
+                #preferential attachment
+                #square rooted to make < n_nodes
+                pa = math.sqrt(len(j_nei) * len(i_nei))
+                self.placn_features[i][j][3] = pa #
 
+                
+                #resource allocation
+                #skipped as variation of adamic adair
+                #ra_sum = 0;
+                #for k in all_nei:
+                 #   if k in neighborCache != None:
+                 #       k_nei = neighborCache[k]
+                 #   else:
+                 #       k_nei = get_neighbor_nodes(set([k]), A_incidence, 1, None)
+                 #       neighborCache[k] = k_nei
+                  #  ra_sum = ra_sum + 1/len(k_nei)
+                #self.placn_features[i][j][2] = ra_sum #adamic-adair
+                
         self.ssp_graph = ssp_graph
         self.id2entity = id2entity
         self.id2relation = id2relation
@@ -207,14 +236,13 @@ class SubgraphDataset(Dataset):
         n_nodes = subgraph.number_of_nodes()
         label_feats = np.zeros((n_nodes,self.placn_size))
         label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
-        placn_subfeats=np.zeros((n_nodes, self.placn_size * 3))
+        placn_subfeats=np.zeros((n_nodes, self.placn_size * 4 * self.graph.number_of_nodes()))
+        #needs to be a big flat array of one hots
         for i in range(0, n_nodes):
             for j in range(0, n_nodes):
-                # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
-                # model, positive links should not contain any information of the link’s
-                # existence.
-                for f in range(0, 3):
-                    placn_subfeats[i][3*j + f] = self.placn_features[i][j][f]
+                for f in range(0, 4):
+                    for n in range(0,self.graph.number_of_nodes()):
+                        placn_subfeats[i][4*j + f] = 1 if self.placn_features[i][j][f] == n else 0
         n_feats = np.concatenate((label_feats,placn_subfeats), axis=1) 
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
 
@@ -225,8 +253,8 @@ class SubgraphDataset(Dataset):
         n_ids[tail_id] = 2  # tail
         subgraph.ndata['id'] = torch.FloatTensor(n_ids)
 
-        self.n_feat_dim = n_feats.shape[1]  # Find cleaner way to do this -- i.e. set the n_feat_dim
-        if self.n_feat_dim > self.placn_size*4:
+        self.n_feat_dim = n_feats.shape[1]  
+        if self.n_feat_dim > self.placn_size*5:
             print(nodes)
             print(self.n_feat_dim)
             die()

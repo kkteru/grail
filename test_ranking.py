@@ -273,20 +273,22 @@ def remove_nodes(A_incidence, nodes):
 
 
 def node_label_new(subgraph, max_distance=1):
-    # an implementation of the proposed double-radius node labeling (DRNd   L)
     roots = [0, 1]
-    sgs_single_root = [remove_nodes(subgraph, [root]) for root in roots]
-    dist_to_roots = [np.clip(ssp.csgraph.dijkstra(sg, indices=[0], directed=False, unweighted=True, limit=1e6)[:, 1:], 0, 1e7) for r, sg in enumerate(sgs_single_root)]
-    dist_to_roots = np.array(list(zip(dist_to_roots[0][0], dist_to_roots[1][0])), dtype=int)
-
-    # dist_to_roots[np.abs(dist_to_roots) > 1e6] = 0
-    # dist_to_roots = dist_to_roots + 1
-    target_node_labels = np.array([[0, 1], [1, 0]])
-    labels = np.concatenate((target_node_labels, dist_to_roots)) if dist_to_roots.size else target_node_labels
-
-    enclosing_subgraph_nodes = np.where(np.max(labels, axis=1) <= max_distance)[0]
-    # print(len(enclosing_subgraph_nodes))
-    return labels, enclosing_subgraph_nodes
+	node_map = [.5, .5]
+	dist_to_roots = np.clip(ssp.csgraph.dijkstra(subgraph, indices=[0, 1], directed=False, unweighted=True, min_only=False, limit=1e6), 0, 1e7)
+	enclosing_subgraph_nodes = []
+	for r in range(subgraph.shape[0])[2:]:
+	    nextIndex = len(enclosing_subgraph_nodes)
+	    h_i = dist_to_roots[0][r]
+	    h_j = dist_to_roots[1][r]
+	    #weights not available, just use distance
+	    d = (h_i+h_j)/2
+	    if d > .5 and d <= k: #worse case is K hops if graph is a straight line of nodes
+		node_map += [d]
+	    else:
+		node_map += [k]
+	r = np.argsort(np.argsort(node_map))
+    return r, range(subgraph.shape[0])
 
 
 def ssp_multigraph_to_dgl(graph, n_feats=None):

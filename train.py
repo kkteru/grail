@@ -80,7 +80,7 @@ if __name__ == '__main__':
                         help="Name of file containing validation triplets")
 
     # Training regime params
-    parser.add_argument("--num_epochs", "-ne", type=int, default=100,
+    parser.add_argument("--num_epochs", "-ne", type=int, default=500,
                         help="Learning rate of the optimizer")
     parser.add_argument("--eval_every", type=int, default=3,
                         help="Interval of epochs to evaluate the model?")
@@ -92,7 +92,7 @@ if __name__ == '__main__':
                         help="Early stopping patience")
     parser.add_argument("--optimizer", type=str, default="Adam",
                         help="Which optimizer to use?")
-    parser.add_argument("--lr", type=float, default=0.01,
+    parser.add_argument("--lr", type=float, default=0.001,
                         help="Learning rate of the optimizer")
     parser.add_argument("--clip", type=int, default=1000,
                         help="Maximum gradient norm allowed")
@@ -128,7 +128,7 @@ if __name__ == '__main__':
                         help='whether to only consider enclosing subgraph')
     parser.add_argument('--placn_subgraphs', '-ps', type=bool, default=False,
                         help='whether to use constant size subgraphs from Placn method')
-    parser.add_argument('--placn_subgraph_size', '-psz', type=int, default=30,
+    parser.add_argument('--placn_subgraph_size', '-psz', type=int, default=6,
                         help='The constant size of subgraphs from Placn method')
 
     # Model params
