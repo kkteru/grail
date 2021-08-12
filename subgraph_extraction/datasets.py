@@ -130,7 +130,7 @@ class SubgraphDataset(Dataset):
                         neighborCache[k] = k_nei
                 #    aa_sum = aa_sum + 1/math.log(len(k_nei))
                         aa_sum = aa_sum + len(k_nei)
-                aa_sum = math.round(math.min(aa_sum / (len(all_nei) * (len(n_nodes) - 1)), n_nodes))#divide sum by denominator of weighted average
+                aa_sum = round(min(aa_sum / (len(all_nei) * (n_nodes - 1)), n_nodes))#divide sum by denominator of weighted average
                 # self.placn_features[i][j][2] = aa_sum #adamic-adair
 
                 #preferential attachment
