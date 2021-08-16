@@ -122,7 +122,7 @@ class SubgraphDataset(Dataset):
                     else:
                         k_nei = get_neighbor_nodes(set([k]), A_incidence, 1, None)
                         neighborCache[k] = k_nei
-                        aa_sum = aa_sum + 1/math.log(len(k_nei))
+                    aa_sum = aa_sum + 1/math.log(max(2, len(k_nei)))
                 self.placn_features[i][j][2] = aa_sum #adamic-adair
 
                 #preferential attachment
