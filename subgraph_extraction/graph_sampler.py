@@ -103,7 +103,7 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
         logging.info(f"Extracting enclosing subgraphs for positive links in {split_name} set")
         labels = np.ones(len(split['pos']))
         db_name_pos = split_name + '_pos'
-        env.set_mapsize(1000000)
+        env.set_mapsize(10000000)
         split_env = env.open_db(db_name_pos.encode())
         extraction_helper(A, split['pos'], labels, split_env)
 

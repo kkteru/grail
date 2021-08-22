@@ -36,7 +36,7 @@ def main(params):
                                    saved_relation2id=graph_classifier.relation2id,
                                    max_label_value=graph_classifier.gnn.max_label_value)
 
-        test = SubgraphDataset(params.db_path, 'test_pos', 'test_neg', params.file_paths, graph_classifier.relation2id,
+        test = SubgraphDataset(params.db_path, 'guess_pos', 'guess_neg', params.file_paths, graph_classifier.relation2id,
                                add_traspose_rels=params.add_traspose_rels,
                                num_neg_samples_per_link=params.num_neg_samples_per_link,
                                use_kge_embeddings=params.use_kge_embeddings, dataset=params.dataset,
