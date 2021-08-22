@@ -27,6 +27,7 @@ class Guesser():
                 data_pos, targets_pos, data_neg, targets_neg = self.params.move_batch_to_device(batch, self.params.device)
                 print([self.data.id2relation[r.item()] for r in data_pos[1]])
                 print(data_pos)
+                quit();
                 # pdb.set_trace()
                 #max score = 0
                 #for each v in all nodes

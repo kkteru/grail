@@ -16,7 +16,7 @@ import pdb
 
 def generate_subgraph_datasets(params, splits=['train', 'valid'], saved_relation2id=None, max_label_value=None):
 
-    testing = 'test' in splits
+    testing = 'test' in splits or 'guess' in splits
     adj_list, triplets, entity2id, relation2id, id2entity, id2relation = process_files(params.file_paths, saved_relation2id)
 
     # plot_rel_dist(adj_list, os.path.join(params.main_dir, f'data/{params.dataset}/rel_dist.png'))
@@ -36,10 +36,12 @@ def generate_subgraph_datasets(params, splits=['train', 'valid'], saved_relation
         logging.info(f"Sampling negative links for {split_name}")
         split['pos'], split['neg'] = sample_neg(adj_list, split['triplets'], params.num_neg_samples_per_link, max_size=split['max_size'], constrained_neg_prob=params.constrained_neg_prob)
 
-    if testing:
+    if testing and 'test' in splits:
         directory = os.path.join(params.main_dir, 'data/{}/'.format(params.dataset))
         save_to_file(directory, f'neg_{params.test_file}_{params.constrained_neg_prob}.txt', graphs['test']['neg'], id2entity, id2relation)
-
+    elif testing and 'guess' in splits:
+        directory = os.path.join(params.main_dir, 'data/{}/'.format(params.dataset))
+        save_to_file(directory, f'neg_{params.test_file}_{params.constrained_neg_prob}.txt', graphs['guess']['neg'], id2entity, id2relation)
     links2subgraphs(adj_list, graphs, params, max_label_value)
 
 

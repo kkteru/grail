@@ -31,6 +31,7 @@ def process_files(files, saved_relation2id=None):
     for file_type, file_path in files.items():
 
         data = []
+        print(file_path)
         with open(file_path) as f:
             file_data = [line.split() for line in f.read().split('\n')[:-1]]
 

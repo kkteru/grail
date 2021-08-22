@@ -10,7 +10,7 @@ import numpy as np
 from subgraph_extraction.datasets import SubgraphDataset, generate_subgraph_datasets
 from utils.initialization_utils import initialize_experiment, initialize_model
 from utils.graph_utils import collate_dgl, move_batch_to_device_dgl
-from managers.Guesser import Guesser
+from managers.guesser import Guesser
 
 from warnings import simplefilter
 
@@ -32,7 +32,7 @@ def main(params):
 
         params.db_path = os.path.join(params.main_dir, f'data/{params.dataset}/guess_subgraphs_{params.experiment_name}_{params.constrained_neg_prob}_en_{params.enclosing_sub_graph}')
 
-        generate_subgraph_datasets(params, splits=['test'],
+        generate_subgraph_datasets(params, splits=['guess'], 
                                    saved_relation2id=graph_classifier.relation2id,
                                    max_label_value=graph_classifier.gnn.max_label_value)
 
@@ -68,8 +68,8 @@ if __name__ == '__main__':
                         help="Dataset string")
     parser.add_argument("--train_file", "-tf", type=str, default="train",
                         help="Name of file containing training triplets")
-    parser.add_argument("--test_file", "-t", type=str, default="test",
-                        help="Name of file containing test triplets")
+    parser.add_argument("--test_file", "-t", type=str, default="guess",
+                        help="Name of file containing a triplet to test")
     parser.add_argument("--runs", type=int, default=1,
                         help="How many runs to perform for mean and std?")
     parser.add_argument("--gpu", type=int, default=0,
@@ -92,7 +92,7 @@ if __name__ == '__main__':
                         help='what format to store subgraphs in for model')
     parser.add_argument('--constrained_neg_prob', '-cn', type=float, default=0,
                         help='with what probability to sample constrained heads/tails while neg sampling')
-    parser.add_argument("--num_neg_samples_per_link", '-neg', type=int, default=0,
+    parser.add_argument("--num_neg_samples_per_link", '-neg', type=int, default=1,
                         help="Number of negative examples to sample per positive link")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="Batch size")
@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
     params.file_paths = {
         'train': os.path.join(params.main_dir, 'data/{}/{}.txt'.format(params.dataset, params.train_file)),
-        'test': os.path.join(params.main_dir, 'data/{}/{}.txt'.format(params.dataset, params.test_file))
+        'guess': os.path.join(params.main_dir, 'data/{}/{}.txt'.format(params.dataset, params.test_file))
     }
 
     if not params.disable_cuda and torch.cuda.is_available():
