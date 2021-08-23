@@ -25,6 +25,11 @@ def generate_subgraph_datasets(params, splits=['train', 'valid'], saved_relation
     if not os.path.isdir(data_path) and not testing:
         with open(data_path, 'w') as f:
             json.dump(relation2id, f)
+            
+    data_path = os.path.join(params.main_dir, f'data/{params.dataset}/entity2id.json')
+    if not os.path.isdir(data_path) and not testing:
+        with open(data_path, 'w') as f:
+            json.dump(entity2id, f)
 
     graphs = {}
 

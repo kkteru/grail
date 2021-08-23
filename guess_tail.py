@@ -44,15 +44,8 @@ def main(params):
 
         test_evaluator = Guesser(params, graph_classifier, test)
 
-        result = test_evaluator.eval()
-        logging.info('\nTest Set Performance:' + str(result))
-        all_auc_pr.append(result['auc_pr'])
-        auc_pr_mean = auc_pr_mean + (result['auc_pr'] - auc_pr_mean) / r
-
-
-
-    logging.info('\nAvg test Set Performance -- mean auc :' + str(np.mean(all_auc)) + ' std auc: ' + str(np.std(all_auc)))
-    logging.info('\nAvg test Set Performance -- mean auc_pr :' + str(np.mean(all_auc_pr)) + ' std auc_pr: ' + str(np.std(all_auc_pr)))
+        test_evaluator.eval()
+        
 
 
 if __name__ == '__main__':
