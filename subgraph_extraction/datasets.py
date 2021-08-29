@@ -120,8 +120,11 @@ class SubgraphDataset(Dataset):
 
                 all_nei = set(i_nei)
                 all_nei.union(set(j_nei))
-                self.placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
-                
+                if len(all_nei) > 0 :#avoid div by zero
+                    self.placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
+                else :
+                    self.placn_features[i][j][1] = sys.float_info.max
+                    
                 aa_sum = 0;#adamic-adair
                 for k in all_nei:
                     if k in neighborCache != None:
