@@ -123,7 +123,7 @@ class SubgraphDataset(Dataset):
                 if len(all_nei) > 0 :#avoid div by zero
                     self.placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
                 else :
-                    self.placn_features[i][j][1] = sys.float_info.max
+                    self.placn_features[i][j][1] = 2
                     
                 aa_sum = 0;#adamic-adair
                 for k in all_nei:
