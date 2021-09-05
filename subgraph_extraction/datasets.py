@@ -95,7 +95,7 @@ class SubgraphDataset(Dataset):
                 i_nei = get_neighbor_nodes(set([i]), A_incidence, 1, None)
                 neighborCache[i] = i_nei
             
-            for j in range(0,n_nodes):                
+            for j in range(i,n_nodes): #start at i since we only need to calc upper diagonal and mirror it                
                 # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
                 # model, positive links should not contain any information of the link’s
                 # existence.
@@ -141,7 +141,9 @@ class SubgraphDataset(Dataset):
                         neighborCache[k] = k_nei
                     ra_sum = ra_sum + 1/len(k_nei)
                 self.placn_features[i][j][4] = ra_sum #adamic-adair
-                
+
+                #mirror to lower half
+                self.placn_features[j][i] = self.placn_features[i][j]
         self.ssp_graph = ssp_graph
         self.id2entity = id2entity
         self.id2relation = id2relation

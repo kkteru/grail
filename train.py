@@ -72,7 +72,7 @@ if __name__ == '__main__':
                         help="Which GPU to use?")
     parser.add_argument('--disable_cuda', action='store_true',
                         help='Disable CUDA')
-    parser.add_argument('--load_model', action='store_true',
+    parser.add_argument('--load_model', action='store_true', default=True,
                         help='Load existing model?')
     parser.add_argument("--train_file", "-tf", type=str, default="train",
                         help="Name of file containing training triplets")
@@ -80,7 +80,7 @@ if __name__ == '__main__':
                         help="Name of file containing validation triplets")
 
     # Training regime params
-    parser.add_argument("--num_epochs", "-ne", type=int, default=100,
+    parser.add_argument("--num_epochs", "-ne", type=int, default=1000,
                         help="Learning rate of the optimizer")
     parser.add_argument("--eval_every", type=int, default=3,
                         help="Interval of epochs to evaluate the model?")
