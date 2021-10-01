@@ -95,10 +95,8 @@ class SubgraphDataset(Dataset):
                 i_nei = get_neighbor_nodes(set([i]), A_incidence, 1, None)
                 neighborCache[i] = i_nei
             
-            for j in range(i,n_nodes): #start at i since we only need to calc upper diagonal and mirror it                
-                # We always assign zero to the positive target link in the adjacency matrix of the weighted graph. The reason is that when we test PLACN
-                # model, positive links should not contain any information of the linkâ€™s
-                # existence.
+            for j in range(i,n_nodes): 
+            	#pointless to compare to itself
                 if i==j: continue
                 
                 if j in neighborCache:
@@ -230,8 +228,14 @@ class SubgraphDataset(Dataset):
         label_feats = np.zeros((n_nodes,self.placn_size))
         label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
         placn_subfeats=np.zeros((n_nodes, self.placn_size * 5))
-        for i in range(0, n_nodes):
-            for j in range(0, n_nodes):
+        #Reason to start at, from grail paper:
+        #We always assign zero to the positive target link in the adjacency matrix
+#of the weighted graph. The reason is that when we test PLACN
+#model, positive links should not contain any information of the link’s
+#existence. PLACN needs to learn both the positive and negative links
+#without the links’ existing information.
+        for i in range(2, n_nodes):
+            for j in range(2, n_nodes):
                 for f in range(0, 5):
                     placn_subfeats[i][5*j + f] = self.placn_features[nodes[i]][nodes[j]][f]
         n_feats = np.concatenate((label_feats,placn_subfeats), axis=1) 
