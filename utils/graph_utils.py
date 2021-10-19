@@ -85,7 +85,7 @@ def ssp_multigraph_to_dgl(graph, n_feats=None):
 
 def collate_dgl(samples):
     # The input `samples` is a list of pairs
-    graphs_pos, g_labels_pos, r_labels_pos, graphs_negs, g_labels_negs, r_labels_negs = map(list, zip(*samples))
+    graphs_pos, g_labels_pos, r_labels_pos, graphs_negs, g_labels_negs, r_labels_negs = map(list, zip(*samples))    
     batched_graph_pos = dgl.batch(graphs_pos)
 
     graphs_neg = [item for sublist in graphs_negs for item in sublist]

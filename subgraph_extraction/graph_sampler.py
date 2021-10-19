@@ -70,7 +70,7 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
     '''
     extract enclosing subgraphs, write map mode + named dbs
     '''
-    max_n_label = {'value': np.array([0, 0])}
+    max_n_label = {'value': 0}
     subgraph_sizes = []
     enc_ratios = []
     num_pruned_nodes = []
@@ -91,7 +91,7 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
         with mp.Pool(processes=None, initializer=intialize_worker, initargs=(A, params, max_label_value)) as p:
             args_ = zip(range(len(links)), links, g_labels)
             for (str_id, datum) in tqdm(p.imap(extract_save_subgraph, args_), total=len(links)):
-                max_n_label['value'] = np.maximum(np.max(datum['n_labels'], axis=0), max_n_label['value'])
+                max_n_label['value'] = np.maximum(np.max(datum['n_labels']), max_n_label['value'])
                 subgraph_sizes.append(datum['subgraph_size'])
                 enc_ratios.append(datum['enc_ratio'])
                 num_pruned_nodes.append(datum['num_pruned_nodes'])
@@ -103,6 +103,7 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
         logging.info(f"Extracting enclosing subgraphs for positive links in {split_name} set")
         labels = np.ones(len(split['pos']))
         db_name_pos = split_name + '_pos'
+        env.set_mapsize(100000000)
         split_env = env.open_db(db_name_pos.encode())
         extraction_helper(A, split['pos'], labels, split_env)
 
@@ -115,11 +116,8 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
     max_n_label['value'] = max_label_value if max_label_value is not None else max_n_label['value']
 
     with env.begin(write=True) as txn:
-        bit_len_label_sub = int.bit_length(int(max_n_label['value'][0]))
-        bit_len_label_obj = int.bit_length(int(max_n_label['value'][1]))
-        txn.put('max_n_label_sub'.encode(), (int(max_n_label['value'][0])).to_bytes(bit_len_label_sub, byteorder='little'))
-        txn.put('max_n_label_obj'.encode(), (int(max_n_label['value'][1])).to_bytes(bit_len_label_obj, byteorder='little'))
 
+        txn.put('max_n_label'.encode(), struct.pack('i', int(max_n_label['value'])))
         txn.put('avg_subgraph_size'.encode(), struct.pack('f', float(np.mean(subgraph_sizes))))
         txn.put('min_subgraph_size'.encode(), struct.pack('f', float(np.min(subgraph_sizes))))
         txn.put('max_subgraph_size'.encode(), struct.pack('f', float(np.max(subgraph_sizes))))
@@ -139,7 +137,7 @@ def links2subgraphs(A, graphs, params, max_label_value=None):
 def get_average_subgraph_size(sample_size, links, A, params):
     total_size = 0
     for (n1, n2, r_label) in links[np.random.choice(len(links), sample_size)]:
-        nodes, n_labels, subgraph_size, enc_ratio, num_pruned_nodes = subgraph_extraction_labeling((n1, n2), r_label, A, params.hop, params.enclosing_sub_graph, params.max_nodes_per_hop)
+        nodes, n_labels, subgraph_size, enc_ratio, num_pruned_nodes = subgraph_extraction_labeling((n1, n2), r_label, A, params.hop, params.enclosing_sub_graph, params.max_nodes_per_hop, None, params)
         datum = {'nodes': nodes, 'r_label': r_label, 'g_label': 0, 'n_labels': n_labels, 'subgraph_size': subgraph_size, 'enc_ratio': enc_ratio, 'num_pruned_nodes': num_pruned_nodes}
         total_size += len(serialize(datum))
     return total_size / sample_size
@@ -152,11 +150,7 @@ def intialize_worker(A, params, max_label_value):
 
 def extract_save_subgraph(args_):
     idx, (n1, n2, r_label), g_label = args_
-    nodes, n_labels, subgraph_size, enc_ratio, num_pruned_nodes = subgraph_extraction_labeling((n1, n2), r_label, A_, params_.hop, params_.enclosing_sub_graph, params_.max_nodes_per_hop)
-
-    # max_label_value_ is to set the maximum possible value of node label while doing double-radius labelling.
-    if max_label_value_ is not None:
-        n_labels = np.array([np.minimum(label, max_label_value_).tolist() for label in n_labels])
+    nodes, n_labels, subgraph_size, enc_ratio, num_pruned_nodes = subgraph_extraction_labeling((n1, n2), r_label, A_, params_.hop, params_.enclosing_sub_graph, params_.max_nodes_per_hop, None, params_)
 
     datum = {'nodes': nodes, 'r_label': r_label, 'g_label': g_label, 'n_labels': n_labels, 'subgraph_size': subgraph_size, 'enc_ratio': enc_ratio, 'num_pruned_nodes': num_pruned_nodes}
     str_id = '{:08}'.format(idx).encode('ascii')
@@ -175,51 +169,76 @@ def get_neighbor_nodes(roots, adj, h=1, max_nodes_per_hop=None):
     return set().union(*lvls)
 
 
-def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=False, max_nodes_per_hop=None, max_node_label_value=None):
-    # extract the h-hop enclosing subgraphs around link 'ind'
+def subgraph_extraction_labeling(ind, rel, A_list, h=1, enclosing_sub_graph=False, max_nodes_per_hop=None, max_node_label_value=None, params=[]):
+    # proof we dont need to union the expanding subgraphs on each iteration as listed in placn paper
+    #Lh(i) subset of Lh+1(i)
+    # Lh(j) subset of Lh+1(j)
+
+    # x belong to Lh(i) intersect Lh(j)
+    # x belong to Lh(i) and x belong to Lh(j)
+    # x belong to Lh(i)
+    # x belong to Lh(j)
+
+    # x belong to Lh(i) => x belong to Lh+1(i)
+    # x belong to Lh(j) => x belong to Lh+1(j)
+
+    # x belong to Lh+1(i) and x belong to Lh+1(j)
+    # x belong to Lh+1(i) intersect Lh+1(j)
+
+                
+    hop = 1
+    subgraph_nodes = []
     A_incidence = incidence_matrix(A_list)
     A_incidence += A_incidence.T
+    while len(subgraph_nodes) < params.placn_subgraph_size and hop < 10:
+        root1_nei = get_neighbor_nodes(set([ind[0]]), A_incidence, hop, None)
+        root2_nei = get_neighbor_nodes(set([ind[1]]), A_incidence, hop, None)
 
-    root1_nei = get_neighbor_nodes(set([ind[0]]), A_incidence, h, max_nodes_per_hop)
-    root2_nei = get_neighbor_nodes(set([ind[1]]), A_incidence, h, max_nodes_per_hop)
+        subgraph_nei_nodes_int = root1_nei.intersection(root2_nei)
+        subgraph_nei_nodes_un = root1_nei.union(root2_nei)
 
-    subgraph_nei_nodes_int = root1_nei.intersection(root2_nei)
-    subgraph_nei_nodes_un = root1_nei.union(root2_nei)
-
-    # Extract subgraph | Roots being in the front is essential for labelling and the model to work properly.
-    if enclosing_sub_graph:
-        subgraph_nodes = list(ind) + list(subgraph_nei_nodes_int)
-    else:
-        subgraph_nodes = list(ind) + list(subgraph_nei_nodes_un)
-
+        # Extract subgraph | Roots being in the front is essential for labelling and the model to work properly.
+        if enclosing_sub_graph:
+            subgraph_nodes = list(ind) + list(subgraph_nei_nodes_int)
+        else:
+            subgraph_nodes = list(ind) + list(subgraph_nei_nodes_un)
+        hop = hop + 1
+    subgraph_nodes = subgraph_nodes[:params.placn_subgraph_size] #force to PLACN K size
     subgraph = [adj[subgraph_nodes, :][:, subgraph_nodes] for adj in A_list]
 
-    labels, enclosing_subgraph_nodes = node_label(incidence_matrix(subgraph), max_distance=h)
+    labels, enclosing_subgraph_nodes = placn_node_label(incidence_matrix(subgraph), params.placn_subgraph_size)
 
-    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist()
-    pruned_labels = labels[enclosing_subgraph_nodes]
-    # pruned_subgraph_nodes = subgraph_nodes
-    # pruned_labels = labels
-
-    if max_node_label_value is not None:
-        pruned_labels = np.array([np.minimum(label, max_node_label_value).tolist() for label in pruned_labels])
+    pruned_subgraph_nodes = np.array(subgraph_nodes)[enclosing_subgraph_nodes].tolist() 
+    pruned_labels = labels
 
     subgraph_size = len(pruned_subgraph_nodes)
     enc_ratio = len(subgraph_nei_nodes_int) / (len(subgraph_nei_nodes_un) + 1e-3)
     num_pruned_nodes = len(subgraph_nodes) - len(pruned_subgraph_nodes)
 
+    if len(pruned_labels) != len(pruned_subgraph_nodes):
+        print(len(pruned_labels))
+        print(len(pruned_subgraph_nodes))
+        quit()
     return pruned_subgraph_nodes, pruned_labels, subgraph_size, enc_ratio, num_pruned_nodes
+    
 
 
-def node_label(subgraph, max_distance=1):
-    # implementation of the node labeling scheme described in the paper
+def placn_node_label(subgraph,  k):
+    # implementation of the node labeling scheme described in PLACN
+    
     roots = [0, 1]
-    sgs_single_root = [remove_nodes(subgraph, [root]) for root in roots]
-    dist_to_roots = [np.clip(ssp.csgraph.dijkstra(sg, indices=[0], directed=False, unweighted=True, limit=1e6)[:, 1:], 0, 1e7) for r, sg in enumerate(sgs_single_root)]
-    dist_to_roots = np.array(list(zip(dist_to_roots[0][0], dist_to_roots[1][0])), dtype=int)
-
-    target_node_labels = np.array([[0, 1], [1, 0]])
-    labels = np.concatenate((target_node_labels, dist_to_roots)) if dist_to_roots.size else target_node_labels
-
-    enclosing_subgraph_nodes = np.where(np.max(labels, axis=1) <= max_distance)[0]
-    return labels, enclosing_subgraph_nodes
+    node_map = [.5, .5]
+    dist_to_roots = np.clip(ssp.csgraph.dijkstra(subgraph, indices=[0, 1], directed=False, unweighted=True, min_only=False, limit=1e6), 0, 1e7)
+    enclosing_subgraph_nodes = []
+    for r in range(subgraph.shape[0])[2:]:
+        nextIndex = len(enclosing_subgraph_nodes)
+        h_i = dist_to_roots[0][r]
+        h_j = dist_to_roots[1][r]
+        #weights not available, just use distance
+        d = (h_i+h_j)/2
+        if d > .5 and d <= k: #worse case is K hops if graph is a straight line of nodes
+            node_map += [d]
+        else:
+            node_map += [k]
+    r = np.argsort(np.argsort(node_map))
+    return r, range(subgraph.shape[0])

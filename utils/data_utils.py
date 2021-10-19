@@ -31,6 +31,7 @@ def process_files(files, saved_relation2id=None):
     for file_type, file_path in files.items():
 
         data = []
+        print(file_path)
         with open(file_path) as f:
             file_data = [line.split() for line in f.read().split('\n')[:-1]]
 
@@ -58,7 +59,18 @@ def process_files(files, saved_relation2id=None):
     adj_list = []
     for i in range(len(relation2id)):
         idx = np.argwhere(triplets['train'][:, 2] == i)
-        adj_list.append(csc_matrix((np.ones(len(idx), dtype=np.uint8), (triplets['train'][:, 0][idx].squeeze(1), triplets['train'][:, 1][idx].squeeze(1))), shape=(len(entity2id), len(entity2id))))
+        adj_list.append(
+            csc_matrix(
+                (
+                    np.ones(len(idx), dtype=np.uint8),
+                    (
+                        triplets['train'][:, 0][idx].squeeze(1),
+                        triplets['train'][:, 1][idx].squeeze(1)
+                    )
+                )
+                , shape=(len(entity2id), len(entity2id))
+            )
+        )
 
     return adj_list, triplets, entity2id, relation2id, id2entity, id2relation
 

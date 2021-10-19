@@ -40,7 +40,7 @@ def main(params):
                                add_traspose_rels=params.add_traspose_rels,
                                num_neg_samples_per_link=params.num_neg_samples_per_link,
                                use_kge_embeddings=params.use_kge_embeddings, dataset=params.dataset,
-                               kge_model=params.kge_model, file_name=params.test_file)
+                               kge_model=params.kge_model, file_name=params.test_file, placn_size=params.placn_subgraph_size)
 
         test_evaluator = Evaluator(params, graph_classifier, test)
 
@@ -106,6 +106,10 @@ if __name__ == '__main__':
                         help='whether to append adj matrix list with symmetric relations')
     parser.add_argument('--enclosing_sub_graph', '-en', type=bool, default=True,
                         help='whether to only consider enclosing subgraph')
+    parser.add_argument('--placn_subgraphs', '-ps', type=bool, default=False,
+                        help='whether to use constant size subgraphs from Placn method')
+    parser.add_argument('--placn_subgraph_size', '-psz', type=int, default=6,
+                        help='The constant size of subgraphs from Placn method')
 
     params = parser.parse_args()
     initialize_experiment(params, __file__)

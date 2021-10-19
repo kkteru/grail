@@ -7,6 +7,7 @@ import numpy as np
 import json
 import pickle
 import dgl
+import dgl.contrib.sampling
 from utils.graph_utils import ssp_multigraph_to_dgl, incidence_matrix
 from utils.data_utils import process_files, save_to_file, plot_rel_dist
 from .graph_sampler import *
@@ -53,10 +54,12 @@ def get_kge_embeddings(dataset, kge_model):
     return node_features, kge_entity2id
 
 
+
 class SubgraphDataset(Dataset):
     """Extracted, labeled, subgraph dataset -- DGL Only"""
-
-    def __init__(self, db_path, db_name_pos, db_name_neg, raw_data_paths, included_relations=None, add_traspose_rels=False, num_neg_samples_per_link=1, use_kge_embeddings=False, dataset='', kge_model='', file_name=''):
+    
+               
+    def __init__(self, db_path, db_name_pos, db_name_neg, raw_data_paths, included_relations=None, add_traspose_rels=False, num_neg_samples_per_link=1, use_kge_embeddings=False, dataset='', kge_model='', file_name='', placn_size=20):
 
         self.main_env = lmdb.open(db_path, readonly=True, max_dbs=3, lock=False)
         self.db_pos = self.main_env.open_db(db_name_pos.encode())
@@ -64,7 +67,7 @@ class SubgraphDataset(Dataset):
         self.node_features, self.kge_entity2id = get_kge_embeddings(dataset, kge_model) if use_kge_embeddings else (None, None)
         self.num_neg_samples_per_link = num_neg_samples_per_link
         self.file_name = file_name
-
+        self.placn_size=placn_size
         ssp_graph, __, __, __, id2entity, id2relation = process_files(raw_data_paths, included_relations)
         self.num_rels = len(ssp_graph)
 
@@ -72,19 +75,79 @@ class SubgraphDataset(Dataset):
         if add_traspose_rels:
             ssp_graph_t = [adj.T for adj in ssp_graph]
             ssp_graph += ssp_graph_t
-
+        
+        A_incidence = incidence_matrix(ssp_graph)
+        A_incidence += A_incidence.T
         # the effective number of relations after adding symmetric adjacency matrices and/or self connections
         self.aug_num_rels = len(ssp_graph)
         self.graph = ssp_multigraph_to_dgl(ssp_graph)
+        # compile node features as a 6 dimensional vector
+        # [other node][CN][JC][AA][PA][RA]
+
+        n_nodes = self.graph.number_of_nodes();
+        #tensor of features to use to look up features by nodes (i, j)
+        self.placn_features = np.zeros((n_nodes, n_nodes, 5))
+        neighborCache = {}
+        for i in tqdm(range(0,n_nodes)):
+            if i in neighborCache:
+                i_nei = neighborCache[i]
+            else:
+                i_nei = get_neighbor_nodes(set([i]), A_incidence, 1, None)
+                neighborCache[i] = i_nei
+            
+            for j in range(i,n_nodes): 
+            	#pointless to compare to itself
+                if i==j: continue
+                
+                if j in neighborCache:
+                    j_nei = neighborCache[j]
+                else:
+                    j_nei = get_neighbor_nodes(set([j]), A_incidence, 1, None)
+                    neighborCache[j] = j_nei
+
+                cn_set = set(i_nei)
+                cn_set.intersection_update(set(j_nei))
+                self.placn_features[i][j][0] = len(cn_set)#Common neighbours
+
+                all_nei = set(i_nei)
+                all_nei.union(set(j_nei))
+                self.placn_features[i][j][1] = len(cn_set) / len(all_nei) #Jerard coefficient
+                
+                aa_sum = 0;#adamic-adair
+                for k in all_nei:
+                    if k in neighborCache != None:
+                        k_nei = neighborCache[k]
+                    else:
+                        k_nei = get_neighbor_nodes(set([k]), A_incidence, 1, None)
+                        neighborCache[k] = k_nei
+                    aa_sum = aa_sum + 1/math.log(max(2, len(k_nei)))
+                self.placn_features[i][j][2] = aa_sum #adamic-adair
+
+                #preferential attachment
+                pa = len(j_nei) * len(i_nei)
+                self.placn_features[i][j][3] = pa #
+
+                
+                #resource allocation
+                #skipped as variation of adamic adair
+                ra_sum = 0;
+                for k in all_nei:
+                    if k in neighborCache != None:
+                        k_nei = neighborCache[k]
+                    else:
+                        k_nei = get_neighbor_nodes(set([k]), A_incidence, 1, None)
+                        neighborCache[k] = k_nei
+                    ra_sum = ra_sum + 1/len(k_nei)
+                self.placn_features[i][j][4] = ra_sum #adamic-adair
+
+                #mirror to lower half
+                self.placn_features[j][i] = self.placn_features[i][j]
         self.ssp_graph = ssp_graph
         self.id2entity = id2entity
         self.id2relation = id2relation
 
-        self.max_n_label = np.array([0, 0])
         with self.main_env.begin() as txn:
-            self.max_n_label[0] = int.from_bytes(txn.get('max_n_label_sub'.encode()), byteorder='little')
-            self.max_n_label[1] = int.from_bytes(txn.get('max_n_label_obj'.encode()), byteorder='little')
-
+            self.max_n_label = struct.unpack('i', txn.get('max_n_label'.encode()))[0]
             self.avg_subgraph_size = struct.unpack('f', txn.get('avg_subgraph_size'.encode()))
             self.min_subgraph_size = struct.unpack('f', txn.get('min_subgraph_size'.encode()))
             self.max_subgraph_size = struct.unpack('f', txn.get('max_subgraph_size'.encode()))
@@ -100,7 +163,7 @@ class SubgraphDataset(Dataset):
             self.max_num_pruned_nodes = struct.unpack('f', txn.get('max_num_pruned_nodes'.encode()))
             self.std_num_pruned_nodes = struct.unpack('f', txn.get('std_num_pruned_nodes'.encode()))
 
-        logging.info(f"Max distance from sub : {self.max_n_label[0]}, Max distance from obj : {self.max_n_label[1]}")
+        logging.info(f"Max distance node label: {self.max_n_label}")
 
         # logging.info('=====================')
         # logging.info(f"Subgraph size stats: \n Avg size {self.avg_subgraph_size}, \n Min size {self.min_subgraph_size}, \n Max size {self.max_subgraph_size}, \n Std {self.std_subgraph_size}")
@@ -140,6 +203,7 @@ class SubgraphDataset(Dataset):
         return self.num_graphs_pos
 
     def _prepare_subgraphs(self, nodes, r_label, n_labels):
+        
         subgraph = dgl.DGLGraph(self.graph.subgraph(nodes))
         subgraph.edata['type'] = self.graph.edata['type'][self.graph.subgraph(nodes).parent_eid]
         subgraph.edata['label'] = torch.tensor(r_label * np.ones(subgraph.edata['type'].shape), dtype=torch.long)
@@ -154,39 +218,39 @@ class SubgraphDataset(Dataset):
         # map the id read by GraIL to the entity IDs as registered by the KGE embeddings
         kge_nodes = [self.kge_entity2id[self.id2entity[n]] for n in nodes] if self.kge_entity2id else None
         n_feats = self.node_features[kge_nodes] if self.node_features is not None else None
-        subgraph = self._prepare_features_new(subgraph, n_labels, n_feats)
+        subgraph = self._prepare_features_placn(nodes, subgraph, n_labels)
 
         return subgraph
 
-    def _prepare_features(self, subgraph, n_labels, n_feats=None):
+    def _prepare_features_placn(self, nodes, subgraph, n_labels):
         # One hot encode the node label feature and concat to n_featsure
         n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, self.max_n_label[0] + 1))
-        label_feats[np.arange(n_nodes), n_labels] = 1
-        label_feats[np.arange(n_nodes), self.max_n_label[0] + 1 + n_labels[:, 1]] = 1
-        n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats else label_feats
-        subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
-        self.n_feat_dim = n_feats.shape[1]  # Find cleaner way to do this -- i.e. set the n_feat_dim
-        return subgraph
-
-    def _prepare_features_new(self, subgraph, n_labels, n_feats=None):
-        # One hot encode the node label feature and concat to n_featsure
-        n_nodes = subgraph.number_of_nodes()
-        label_feats = np.zeros((n_nodes, self.max_n_label[0] + 1 + self.max_n_label[1] + 1))
-        label_feats[np.arange(n_nodes), n_labels[:, 0]] = 1
-        label_feats[np.arange(n_nodes), self.max_n_label[0] + 1 + n_labels[:, 1]] = 1
-        # label_feats = np.zeros((n_nodes, self.max_n_label[0] + 1 + self.max_n_label[1] + 1))
-        # label_feats[np.arange(n_nodes), 0] = 1
-        # label_feats[np.arange(n_nodes), self.max_n_label[0] + 1] = 1
-        n_feats = np.concatenate((label_feats, n_feats), axis=1) if n_feats is not None else label_feats
+        label_feats = np.zeros((n_nodes,self.placn_size))
+        label_feats[np.array(np.arange(n_nodes)), n_labels] = 1
+        placn_subfeats=np.zeros((n_nodes, self.placn_size * 5))
+        #Reason to start at, from grail paper:
+        #We always assign zero to the positive target link in the adjacency matrix
+#of the weighted graph. The reason is that when we test PLACN
+#model, positive links should not contain any information of the link’s
+#existence. PLACN needs to learn both the positive and negative links
+#without the links’ existing information.
+        for i in range(2, n_nodes):
+            for j in range(2, n_nodes):
+                for f in range(0, 5):
+                    placn_subfeats[i][5*j + f] = self.placn_features[nodes[i]][nodes[j]][f]
+        n_feats = np.concatenate((label_feats,placn_subfeats), axis=1) 
         subgraph.ndata['feat'] = torch.FloatTensor(n_feats)
 
-        head_id = np.argwhere([label[0] == 0 and label[1] == 1 for label in n_labels])
-        tail_id = np.argwhere([label[0] == 1 and label[1] == 0 for label in n_labels])
+        head_id = np.argwhere([label == 0 for label in n_labels])
+        tail_id = np.argwhere([label == 1 for label in n_labels])
         n_ids = np.zeros(n_nodes)
         n_ids[head_id] = 1  # head
         n_ids[tail_id] = 2  # tail
         subgraph.ndata['id'] = torch.FloatTensor(n_ids)
 
-        self.n_feat_dim = n_feats.shape[1]  # Find cleaner way to do this -- i.e. set the n_feat_dim
+        self.n_feat_dim = n_feats.shape[1]  
+        if self.n_feat_dim > self.placn_size*6:
+            print(nodes)
+            print(self.n_feat_dim)
+            die()
         return subgraph

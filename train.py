@@ -29,12 +29,12 @@ def main(params):
                             add_traspose_rels=params.add_traspose_rels,
                             num_neg_samples_per_link=params.num_neg_samples_per_link,
                             use_kge_embeddings=params.use_kge_embeddings, dataset=params.dataset,
-                            kge_model=params.kge_model, file_name=params.train_file)
+                            kge_model=params.kge_model, file_name=params.train_file, placn_size=params.placn_subgraph_size)
     valid = SubgraphDataset(params.db_path, 'valid_pos', 'valid_neg', params.file_paths,
                             add_traspose_rels=params.add_traspose_rels,
                             num_neg_samples_per_link=params.num_neg_samples_per_link,
                             use_kge_embeddings=params.use_kge_embeddings, dataset=params.dataset,
-                            kge_model=params.kge_model, file_name=params.valid_file)
+                            kge_model=params.kge_model, file_name=params.valid_file, placn_size=params.placn_subgraph_size)
 
     params.num_rels = train.num_rels
     params.aug_num_rels = train.aug_num_rels
@@ -72,7 +72,7 @@ if __name__ == '__main__':
                         help="Which GPU to use?")
     parser.add_argument('--disable_cuda', action='store_true',
                         help='Disable CUDA')
-    parser.add_argument('--load_model', action='store_true',
+    parser.add_argument('--load_model', action='store_true', default=True,
                         help='Load existing model?')
     parser.add_argument("--train_file", "-tf", type=str, default="train",
                         help="Name of file containing training triplets")
@@ -80,7 +80,7 @@ if __name__ == '__main__':
                         help="Name of file containing validation triplets")
 
     # Training regime params
-    parser.add_argument("--num_epochs", "-ne", type=int, default=100,
+    parser.add_argument("--num_epochs", "-ne", type=int, default=1000,
                         help="Learning rate of the optimizer")
     parser.add_argument("--eval_every", type=int, default=3,
                         help="Interval of epochs to evaluate the model?")
@@ -126,6 +126,10 @@ if __name__ == '__main__':
                         help='whether to append adj matrix list with symmetric relations')
     parser.add_argument('--enclosing_sub_graph', '-en', type=bool, default=True,
                         help='whether to only consider enclosing subgraph')
+    parser.add_argument('--placn_subgraphs', '-ps', type=bool, default=False,
+                        help='whether to use constant size subgraphs from Placn method')
+    parser.add_argument('--placn_subgraph_size', '-psz', type=int, default=6,
+                        help='The constant size of subgraphs from Placn method')
 
     # Model params
     parser.add_argument("--rel_emb_dim", "-r_dim", type=int, default=32,
